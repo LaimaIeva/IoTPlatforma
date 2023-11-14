@@ -1,2 +1,2 @@
-# IoTPlatforma
-Daiktų interneto platforma privatiems sprendimams
+# IoTPlatform
+open-source IoT platform for private IoT solutions
