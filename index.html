@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Platforma</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background-color: #f2f2f2; /* Default light mode background color */
+            transition: background-color 0.5s;
+        }
+
+        #menu-container {
+            position: fixed;
+            top: 0;
+            right: -250px;
+            width: 250px;
+            height: 100%;
+            background-color: #333; /* Menu background color */
+            padding-top: 50px;
+            transition: right 0.5s;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #menu-content {
+            padding: 20px;
+            color: #fff; /* Menu text color */
+        }
+
+        #menu-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        #mode-slider {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+        }
+
+        #container {
+            margin: 100px auto;
+            text-align: center;
+        }
+
+        .container {
+            width: 50%;
+            display: inline-block;
+        }
+
+        #home-container {
+            background-color: #fff; /* Home container background color */
+            color: #333; /* Home container text color */
+        }
+
+        #test-container {
+            background-color: #fff; /* Test container background color */
+            color: #333; /* Test container text color */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Menu Toggle Button -->
+    <div id="menu-toggle" onclick="toggleMenu()">
+        <img src="menu-icon.png" alt="Menu">
+    </div>
+
+    <!-- Sliding Menu -->
+    <div id="menu-container">
+        <div id="menu-content">
+            <p><a href="#" onclick="changeContainer('home-container')">Home</a></p>
+            <p><a href="#" onclick="changeContainer('test-container')">1 Test</a></p>
+        </div>
+        <!-- Mode Slider -->
+        <input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
+    </div>
+
+    <!-- Main Content Containers -->
+    <div id="container">
+        <div id="home-container" class="container">
+            <!-- Home Content Goes Here -->
+        </div>
+        <div id="test-container" class="container">
+            <!-- Test Content Goes Here -->
+        </div>
+    </div>
+
+    <script>
+        function toggleMenu() {
+            const menu = document.getElementById('menu-container');
+            const menuToggle = document.getElementById('menu-toggle');
+
+            if (menu.style.right === '0px') {
+                menu.style.right = '-250px';
+                menuToggle.style.right = '20px';
+            } else {
+                menu.style.right = '0';
+                menuToggle.style.right = '270px';
+            }
+        }
+
+        function changeContainer(containerId) {
+            const containers = document.querySelectorAll('.container');
+            containers.forEach(container => {
+                container.style.display = 'none';
+            });
+
+            const selectedContainer = document.getElementById(containerId);
+            selectedContainer.style.display = 'inline-block';
+        }
+
+        function toggleMode() {
+            const body = document.body;
+            const modeSlider = document.getElementById('mode-slider');
+
+            if (modeSlider.value === '1') {
+                // Dark mode
+                body.style.backgroundColor = '#333';
+            } else {
+                // Light mode
+                body.style.backgroundColor = '#f2f2f2';
+            }
+        }
+    </script>
+
+</body>
+</html>
