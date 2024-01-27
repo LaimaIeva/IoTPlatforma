@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deprecated IoT Devices</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}"/>
+    <style>
+        .device-item {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            position: relative; /* Added position relative for absolute positioning of delete button */
+        }
+
+        .device-name {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: start;
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background-color: #ff0000;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #devices-container {
+            width: 85%;
+            margin: 0 auto;
+        }
+
+        #search-container {
+            width: 85%;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-left: 10px;
+            margin-right: 10px;
+            text-align: center;
+            justify-content: flex-start;
+        }
+
+        #search-input {
+            padding: 5px;
+        }
+    </style>
+</head>
+<body class="{% if dark_mode %}dark-mode{% endif %}">
+
+    <!-- Menu Toggle Button -->
+    <div id="menu-toggle" onclick="toggleMenu()">
+        <img src="{{ url_for('static', filename='menu-icon.png') }}" alt="Menu" width="50" height="50">
+    </div>
+
+    <!-- Sliding Menu -->
+    <div id="menu-container">
+        <div id="menu-content">
+            <p><a href="{{ url_for('index') }}">Home</a></p>
+            <p><a href="{{ url_for('devices') }}">Devices</a></p>
+	    <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
+        </div>
+
+        <!-- Mode Slider -->
+        <input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
+    </div>
+
+    <!-- Page Title -->
+    <div id="page-title">Deprecated Devices</div>
+    
+    <!-- Search Bar -->
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search...">
+        <button onclick="searchDevices()">Search</button>
+    </div>
+    
+    <!-- Deprecated Devices Container -->
+    <div id="devices-container" class="container">
+        <div id="device-list"></div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            loadDeprecatedDevices();
+        });
+
+	function loadDeprecatedDevices() {
+	    fetch('/get_deprecated_devices')
+	        .then(response => response.json())
+	        .then(data => {
+	            const deviceList = document.getElementById('device-list');
+	            const deprecatedDevices = data.devices.filter(device => device.is_deleted);
+	            deviceList.innerHTML = deprecatedDevices.map(device =>
+	                `<div class="device-item">
+	                    <p class="device-name"><strong>${device.name}</strong></p>
+	                    <button class="delete-button" onclick="deleteDeprecatedDevice('${device.name}')">Delete</button>
+	                    <p>Secret Key: ${device.secret_key}</p>
+	                    <p>Created At: ${device.created_at}</p>
+			    <p>Deleted At: ${device.deletion_date}</p>
+	                </div>`
+	            ).join('');
+	        })
+	        .catch(error => console.error('Error:', error));
+	}
+
+        function deleteDeprecatedDevice(deviceName) {
+            // Make an API call to delete the deprecated device and its associated data
+            fetch('/permanent_delete_device', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: deviceName,
+                }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to permanently delete device.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Deprecated device permanently deleted successfully!');
+                // Refresh the list after deleting
+                loadDeprecatedDevices();
+            })
+            .catch(error => {
+                console.error('Error permanently deleting device:', error);
+                alert('Failed to permanently delete device. Please try again.');
+            });
+        }
+    </script>
+</body>
+</html>
