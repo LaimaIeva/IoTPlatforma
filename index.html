@@ -4,48 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IoT Platform</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-            background-color: #f2f2f2; /* Default light mode background color */
-            transition: background-color 0.5s;
-        }
-
-        #menu-container {
-            position: fixed;
-            top: 0;
-            right: -250px;
-            width: 250px;
-            height: 100%;
-            background-color: #333; /* Menu background color */
-            padding-top: 50px;
-            transition: right 0.5s;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-
-        #menu-content {
-            padding: 20px;
-            color: #fff; /* Menu text color */
-        }
-
-        #menu-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            cursor: pointer;
-            z-index: 2;
-        }
-
-        #mode-slider {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-        }
-
         #container {
             margin: 100px auto;
             text-align: center;
@@ -60,15 +22,9 @@
             background-color: #fff; /* Home container background color */
             color: #333; /* Home container text color */
         }
-
-        #devices-container {
-            background-color: #fff; /* Test container background color */
-            color: #333; /* Test container text color */
-            opacity: 0.2;
-        }
     </style>
 </head>
-<body>
+<body class="{% if dark_mode %}dark-mode{% endif %}">
 
     <!-- Menu Toggle Button -->
     <div id="menu-toggle" onclick="toggleMenu()">
@@ -78,82 +34,23 @@
     <!-- Sliding Menu -->
     <div id="menu-container">
         <div id="menu-content">
-            <p><a href="#" onclick="changeContainer('home-container')">Home</a></p>
-            <p><a href="#" onclick="changeContainer('devices-container')">Devices</a></p>
-        </div>
+            <p><a href="{{ url_for('index') }}">Home</a></p>
+            <p><a href="{{ url_for('devices') }}">Devices</a></p>
+	    <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
+        </div>    
         <!-- Mode Slider -->
         <input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
     </div>
-
+	
+    <div id="page-title">Dashboard</div>
+    
     <!-- Main Content Containers -->
     <div id="container">
         <div id="home-container" class="container">
             <!-- Home Content Goes Here -->
         </div>
-        <div id="devices-container" class="container">
-            <!-- Test Content Goes Here -->
-	    <div id="device-list"></div>
-        </div>
     </div>
-
     <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        loadDevices();
-    });
-
-    function toggleMenu() {
-        const menu = document.getElementById('menu-container');
-        const menuToggle = document.getElementById('menu-toggle');
-
-        if (menu.style.right === '0px') {
-            menu.style.right = '-250px';
-            menuToggle.style.right = '20px';
-        } else {
-            menu.style.right = '0';
-            menuToggle.style.right = '270px';
-        }
-    }
-
-    function changeContainer(containerId) {
-        const containers = document.querySelectorAll('.container');
-        containers.forEach(container => {
-            container.style.display = 'none';
-        });
-
-        const selectedContainer = document.getElementById(containerId);
-        selectedContainer.style.display = 'inline-block';
-    }
-
-    function toggleMode() {
-        const body = document.body;
-        const modeSlider = document.getElementById('mode-slider');
-
-        if (modeSlider.value === '1') {
-            // Dark mode
-            body.style.backgroundColor = '#333';
-        } else {
-            // Light mode
-            body.style.backgroundColor = '#f2f2f2';
-        }
-    }
-
-    function loadDevices() {
-        fetch('/get_devices')
-            .then(response => response.json())
-            .then(data => {
-                const deviceList = document.getElementById('device-list');
-                deviceList.innerHTML = data.devices.map(device =>
-                    `<div class="device-item">
-                        <p class="device-name"><strong>${device.name}</strong></p>
-                        <ul>
-                            <li>Secret Key: ${device.secret_key}</li>
-                            <li>Created At: ${device.created_at}</li>
-                        </ul>
-                    </div>`
-                ).join('');
-            })
-            .catch(error => console.error('Error:', error));
-    }
     </script>
 </body>
 </html>
