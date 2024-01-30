@@ -32,8 +32,8 @@ def deprecated_devices():
 
 @app.route('/get_devices')
 def get_devices():
-    devices = Device.query.all()
-    device_list = [{'name': device.name, 'secret_key': device.secret_key, 'created_at': device.created_at, 'is_deleted': device.is_deleted, 'deletion_date': device.deletion_date} for device in devices]
+    devices = Device.query.filter_by(is_deleted=False).all()
+    device_list = [{'name': device.name, 'secret_key': device.secret_key, 'created_at': device.created_at} for device in devices]
     return jsonify({'devices': device_list})
 
 @app.route('/get_deprecated_devices')
@@ -54,6 +54,9 @@ def add_device():
         db.session.add(new_device)
         db.session.commit()
         return jsonify({'message': 'Device added successfully'})
+    except IntegrityError as e:
+        db.session.rollback()  # Rollback changes if there's a database constraint violation
+        return jsonify({'error': f'Failed to add device: {str(e)}'}), 500
     except Exception as e:
         print('Error adding device:', str(e))
         return jsonify({'error': 'Failed to add device'}), 500
@@ -97,11 +100,8 @@ def permanent_delete_device():
         name_to_delete = request.json.get('name')
         device = Device.query.filter_by(name=name_to_delete).first()
         if device:
-            # Permanently delete: remove from database and drop associated table
             db.session.delete(device)
             db.session.commit()
-            # Drop associated table
-            db.engine.execute(f"DROP TABLE IF EXISTS {name_to_delete}")
             return jsonify({'message': 'Device permanently deleted successfully'}), 200
         else:
             return jsonify({'error': 'Device not found'}), 404
@@ -109,12 +109,5 @@ def permanent_delete_device():
         print('Error permanently deleting device:', str(e))
         return jsonify({'error': 'Failed to permanently delete device'}), 500
 
-@app.before_request
-def create_tables():
-    with app.app_context():
-        db.create_all()
-
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
