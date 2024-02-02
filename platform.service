@@ -1,0 +1,15 @@
+[Unit]
+Description=Gunicorn instance to serve platform 
+After=network.target
+
+[Service]
+User=calaie
+Group=www-data
+
+WorkingDirectory=/home/calaie/platform 
+Environment="PATH=/home/calaie/platform/venv/bin"
+ExecStart=/bin/bash -c 'source /home/calaie/platform/venv/bin/activate; /home/calaie/platform/venv/bin/python3 /home/calaie/platform/venv/bin/gunicorn -w 1 -b unix:/home/calaie/platform/app.sock app:app'
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
