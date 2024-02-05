@@ -1,0 +1,25 @@
+/* Creates a table for data upon a new device added. */
+
+CREATE OR REPLACE FUNCTION public.create_device_table()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+EXECUTE 'CREATE TABLE IF NOT EXISTS ' || NEW.name || ' (
+        id SERIAL PRIMARY KEY,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        field_name VARCHAR(255),
+        field_value VARCHAR(255)
+    )'; RETURN NEW; END; $function$
+
+/* Deletes the data table upon device permanent deletion */
+CREATE OR REPLACE FUNCTION public.delete_data_table()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+IF EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = OLD.name) THEN
+    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(OLD.name);
+  END IF; RETURN OLD;
+END;
+$function$
