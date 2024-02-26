@@ -7,7 +7,7 @@ import os
 import shutil
 
 app = Flask(__name__, static_url_path='/static')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://calaie:ubuntu@localhost/iot'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://USER:PASS@localhost/DB'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
