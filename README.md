@@ -6,4 +6,3 @@ Using:
 3. Flask
 4. Gunicorn
 5. Postgre SQL
-6. OpenVPN
