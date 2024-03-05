@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IoT Devices</title>
-<link rel="stylesheet" type="text/css" href="/static/styles.css"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Devices</title>
+    <link rel="stylesheet" type="text/css" href="/static/styles.css"/>
 <style>
 .device-item {
     background-color: rgba(255, 255, 255, 0.2); /* Device item background color */
@@ -78,6 +78,25 @@
     width: 80%;
 }
 
+.form-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.label {
+    width: 120px; /* Adjust the width as needed */
+}
+
+.key-value {
+    margin-right: 10px; /* Adjust the margin as needed */
+}
+
+.button-container {
+    text-align: center;
+    margin-top: 20px;
+}
+
 .close {
     color: #aaa;
     float: right;
@@ -91,62 +110,105 @@
     text-decoration: none;
     cursor: pointer;
 }
+
+.copy-message {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(0, 128, 0, 0.8);
+    color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    z-index: 1000;
+    animation: fadeOut 2s forwards;
+}
+
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 60%; /* Adjust the width as needed */
+}
+
+.button-container {
+    text-align: center;
+    margin-top: 20px;
+}
 </style>
 </head>
 <body class="{% if dark_mode %}dark-mode{% endif %}">
 <!-- Menu Toggle Button -->
-<div id="menu-toggle" onclick="toggleMenu()">
-    <img src="{{ url_for('static', filename='menu-icon.png') }}" alt="Menu" width="50" height="50">
-</div>
+    <div id="menu-toggle" onclick="toggleMenu()">
+        <img src="{{ url_for('static', filename='menu-icon.png') }}" alt="Menu" width="50" height="50">
+    </div>
 
-<!-- Sliding Menu -->
-<div id="menu-container">
-    <div id="menu-content">
-        <p><a href="{{ url_for('index') }}">Home</a></p>
-        <p><a href="{{ url_for('devices') }}">Devices</a></p>
-        <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
-</div>
+    <!-- Sliding Menu -->
+    <div id="menu-container">
+        <div id="menu-content">
+            <p><a href="{{ url_for('index') }}">Home</a></p>
+            <p><a href="{{ url_for('devices') }}">Devices</a></p>
+	    <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
+        </div>
+        <!-- Mode Slider -->
+        <input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
+    </div>
 
-<!-- Mode Slider -->
-<input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
-</div>
+    <!-- Page Title -->
+    <div id="page-title">Devices</div>
 
-<!-- Page Title -->
-<div id="page-title">Devices</div>
+    <!-- Search Bar -->
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search...">
+        <button onclick="searchDevices()">Search</button>
+        <button onclick="openAddDeviceModal()">Add Device</button>
+    </div>
 
-<!-- Search Bar -->
-<div id="search-container">
-    <input type="text" id="search-input" placeholder="Search...">
-    <button onclick="searchDevices()">Search</button>
-    <button onclick="openAddDeviceModal()">Add Device</button>
-</div>
-
-<!-- Add Device Modal -->
-<div id="add-device-modal">
-    <h2>Add New Device</h2>
-    <label for="device-name">Device Name:</label>
-    <input type="text" id="device-name">
-    <button onclick="saveDevice()">Save</button>
-    <button onclick="closeAddDeviceModal()">Cancel</button>
-</div>
+    <!-- Add Device Modal -->
+    <div id="add-device-modal">
+        <h2>Add New Device</h2>
+        <label for="device-name">Device Name:</label>
+        <input type="text" id="device-name">
+        <button onclick="saveDevice()">Save</button>
+        <button onclick="closeAddDeviceModal()">Cancel</button>
+    </div>
 
 <div id="editDeleteModal" class="modal">
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
         <h2>Edit/Delete Device</h2>
         <form id="editForm">
-            <label for="editDeviceName">Device Name:</label>
-            <input type="text" id="editDeviceName" name="editDeviceName">
-            <button type="button" onclick="saveChanges()">Save Changes</button>
+            <div class="form-group">
+                <label for="editDeviceName">Device Name:</label>
+                <input type="text" id="editDeviceName" name="editDeviceName">
+            </div>
+            <div class="form-group">
+                <label for="editDeviceKey">Device Key:</label>
+                <span id="editDeviceKey" class="key-value">${originalDeviceKey}</span>
+                <button type="button" onclick="regenerateKey()">Regenerate Key</button>
+            </div>
         </form>
-        <button id="deleteButton" onclick="deleteDevice()">Delete Device</button>
+        <div class="button-container">
+            <button onclick="deleteDevice()">Delete Device</button>
+            <button onclick="saveChanges()">Save Changes</button>
+        </div>
     </div>
 </div>
 
-<!-- Devices Container -->
-<div id="devices-container" class="container">
-    <div id="device-list"></div>
-</div>
+    <!-- Devices Container -->
+    <div id="devices-container" class="container">
+        <div id="device-list"></div>
+    </div>
+	
 <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -166,7 +228,9 @@ function loadDevices() {
             deviceList.innerHTML = activeDevices.map(device =>
                 `<div class="device-item">
                     <p class="device-name"><strong>${device.name}</strong></p>
-                    <p>Secret Key: ${device.secret_key}</p>
+                    <p>Key: <span id="key-${device.name}">${device.key}</span> 
+                        <button onclick="copyToClipboard('key-${device.name}')">Copy</button>
+                    </p>
                     <p>Created At: ${device.created_at}</p>
                 </div>`
             ).join('');
@@ -184,16 +248,16 @@ function closeAddDeviceModal() {
     const modal = document.getElementById('add-device-modal');
     modal.style.display = 'none';
 }
-	
+
 function saveDevice() {
     const deviceName = document.getElementById('device-name').value;
-    // Create a FormData object to send data in the request body
-    const formData = new FormData();
-    formData.append('name', deviceName);
-    // Send a POST request to your server endpoint
+    const requestData = { name: deviceName};
     fetch('/add_device', {
         method: 'POST',
-        body: formData
+        headers: {
+	    'Content-Type': 'application/json',
+	},
+        body: JSON.stringify(requestData),
     })
     .then(response => {
         if (!response.ok) {
@@ -216,21 +280,55 @@ function saveDevice() {
     });
 }
 
-// Open the modal with device details
-function openModal(deviceName) {
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const textArea = document.createElement('textarea');
+    textArea.value = element.innerText;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+
+    // Display non-intrusive message
+    const message = document.createElement('div');
+    message.innerHTML = '<p>Key copied to clipboard!</p>';
+    message.classList.add('copy-message');
+    document.body.appendChild(message);
+    setTimeout(() => {
+        document.body.removeChild(message);
+    }, 2000);
+    event.stopPropagation();
+}
+
+function openModal(deviceName, deviceKey) {
     originalDeviceName = deviceName;
     document.getElementById('editDeviceName').value = deviceName;
+    document.getElementById('editDeviceKey').textContent = deviceKey;
     document.getElementById('editDeleteModal').style.display = 'block';
 }
 
-// Close the modal
+function regenerateKey() {
+    fetch('/get_generated_key')
+        .then(response => response.json())
+        .then(data => {
+            const newKey = data.key;
+            // Update the modal with the new key
+            document.getElementById('editDeviceKey').value = newKey;
+            originalDeviceKey = newKey;
+        })
+        .catch(error => {
+            console.error('Error regenerating key:', error);
+        });
+}
+
 function closeModal() {
     document.getElementById('editDeleteModal').style.display = 'none';
 }
 
-// Save changes in the modal
 function saveChanges() {
     const editedDeviceName = document.getElementById('editDeviceName').value;
+    const editedDeviceKey = document.getElementById('editDeviceKey').value;
+
     // Make an API call to update the device name in the database
     fetch('/update_device', {
         method: 'POST',
@@ -240,6 +338,7 @@ function saveChanges() {
         body: JSON.stringify({
             oldName: originalDeviceName,
             newName: editedDeviceName,
+            newKey: editedDeviceKey,
         }),
     })
     .then(response => {
@@ -302,7 +401,8 @@ document.addEventListener('click', function (event) {
     const deviceItem = event.target.closest('.device-item');
     if (deviceItem) {
         const deviceName = deviceItem.querySelector('.device-name').innerText;
-        openModal(deviceName);
+        const deviceKey = deviceItem.querySelector('span[id^="key-"]').innerText;
+        openModal(deviceName, deviceKey);
     }
 });
 </script>
