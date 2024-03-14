@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, request, send_file, render_te
 import secrets
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import event
 import subprocess
 import os
 import shutil
@@ -21,16 +22,26 @@ class Device(db.Model):
     __tablename__ = 'devices'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), unique=True, nullable=False)
+    key = db.Column(db.String(255), unique=True, nullable=False)
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    is_deleted = db.Column(db.Boolean, default=False)  # New field for soft deletion
-    deletion_date = db.Column(db.TIMESTAMP, nullable=True)  # New field for soft deletion
+    is_deleted = db.Column(db.Boolean, default=False)
+    deletion_date = db.Column(db.TIMESTAMP, nullable=True)
 
-class OpenVPNKey(db.Model):
-    __tablename__ = 'openvpn_keys'
+class BaseDeviceData(db.Model):
+    __abstract__ = True
     id = db.Column(db.Integer, primary_key=True)
-    device_id = db.Column(db.Integer, db.ForeignKey('devices.id'), nullable=False)
-    key_path = db.Column(db.String(255), nullable=False)
-    device = db.relationship('Device', backref='openvpn_key', uselist=False)
+    timestamp = db.Column(db.TIMESTAMP, nullable=False, default=db.func.current_timestamp())
+    field_name = db.Column(db.String(255), nullable=False)
+    field_value = db.Column(db.String(255), nullable=False)
+    device_name = db.Column(db.String(255), nullable=False)
+
+def generate_key():
+    return secrets.token_hex(16)
+
+@app.route('/get_generated_key', methods=['GET'])
+def get_generated_key():
+    key = generate_key()
+    return jsonify({'key': key})
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -42,20 +53,18 @@ def devices():
 
 @app.route('/deprecated_devices')
 def deprecated_devices():
-    deprecated_devices = Device.query.filter_by(is_deleted=True).all()
-    deprecated_device_list = [{'name': device.name, 'created_at': device.created_at, 'deleted_at': device.deletion_date} for device in deprecated_devices]
-    return render_template('deprecated_devices.html', deprecated_devices=deprecated_device_list)
+    return render_template('deprecated_devices.html')
 
 @app.route('/get_devices')
 def get_devices():
     devices = Device.query.filter_by(is_deleted=False).all()
-    device_list = [{'name': device.name, 'created_at': device.created_at} for device in devices]
+    device_list = [{'name': device.name, 'key':device.key, 'created_at': device.created_at} for device in devices]
     return jsonify({'devices': device_list})
 
 @app.route('/get_deprecated_devices')
 def get_deprecated_devices():
     deprecated_devices = Device.query.filter_by(is_deleted=True).all()
-    deprecated_device_list = [{'name': device.name, 'created_at': device.created_at} for device in deprecated_devices]
+    deprecated_device_list = [{'name': device.name, 'created_at': device.created_at, 'deleted_at': device.deletion_date} for device in deprecated_devices]
     return jsonify({'devices': deprecated_device_list})
 
 @app.route('/add_device', methods=['POST'])
@@ -65,15 +74,8 @@ def add_device():
         existing_device = Device.query.filter_by(name=device_name).first()
         if existing_device:
             return jsonify({'error': 'Device with this name already exists'}), 400
-        new_device = Device(name=device_name)
+        new_device = Device(name=device_name, key=generate_key())
         db.session.add(new_device)
-        db.session.commit()
-
-        # Generate OpenVPN key pair
-        key_path, _ = generate_openvpn_key_pair(device_name)
-        # Associate OpenVPN keys with the device
-        openvpn_key = OpenVPNKey(device=new_device, key_path=key_path)
-        db.session.add(openvpn_key)
         db.session.commit()
         return jsonify({'message': 'Device added successfully'})
     except IntegrityError as e:
@@ -84,63 +86,6 @@ def add_device():
         db.session.rollback()
         app.logger.error(f'Error adding device: {str(e)}')
         return jsonify({'error': 'Failed to add device'}), 500
-
-def generate_openvpn_key_pair(device_name):
-    try:
-        # Generate systematic key names based on the device name
-        key_base_name = device_name.lower().replace(" ", "_")
-
-        # Define the base directory for storing keys
-        keys_base_directory = "/etc/openvpn/client"  # Change this to your desired base directory
-
-        # Create a subdirectory for the device
-        device_keys_directory = os.path.join(keys_base_directory, key_base_name)
-        os.makedirs(device_keys_directory, exist_ok=True)
-
-        # Use Easy-RSA to generate OpenVPN key pair
-        openssl_path = "/usr/bin"
-        os.environ["PATH"] = f"{os.environ['PATH']}:{openssl_path}"
-        result = subprocess.run(["/etc/openvpn/easy-rsa/easyrsa3/easyrsa", "gen-req", key_base_name, "nopass"], input=b'\n', cwd="/etc/openvpn/easy-rsa/easyrsa3", capture_output=True)
-
-        # Capture and log the output
-        output = result.stdout.decode('utf-8')
-        error_output = result.stderr.decode('utf-8')
-        logging.info(f'Command output: {output}')
-        logging.error(f'Command error output: {error_output}')
-
-        # Check if the command was successful
-        if result.returncode != 0:
-            raise subprocess.CalledProcessError(result.returncode, result.args, output=output, stderr=error_output)
-
-        # Move the generated files to the device's directory
-        shutil.copy(f"/etc/openvpn/easy-rsa/easyrsa3/pki/private/{key_base_name}.key", device_keys_directory)
-        shutil.copy(f"/etc/openvpn/easy-rsa/easyrsa3/pki/reqs/{key_base_name}.req", device_keys_directory)
-
-        # Link the generated keys with the corresponding device in the database
-        device = Device.query.filter_by(name=device_name).first()
-        if device:
-            new_openvpn_key = OpenVPNKey(device_id=device.id, key_path=device_keys_directory)
-            db.session.add(new_openvpn_key)
-            db.session.commit()
-            logging.info(f'OpenVPN key pair generated and linked successfully for device: {device_name}')
-            return key_path, 'OpenVPN key pair generated and linked successfully', 200
-        else:
-            return 'Device not found', 404
-    except IntegrityError as e:
-        db.session.rollback()
-        logging.error(f'Failed to link OpenVPN key pair with device due to IntegrityError: {str(e)}')
-        return 'Failed to generate OpenVPN key pair', 500
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f'Error generating OpenVPN key pair: {str(e)}')
-        return 'Failed to generate OpenVPN key pair', 50
-
-@app.route('/download_keys/<device_name>', methods=['GET'])
-def download_keys(device_name):
-    keys_directory = f"/etc/openvpn/client/{device_name}"
-    zip_filename = f"{device_name}_keys.zip" # Compress the keys into a ZIP file
-    shutil.make_archive(keys_directory, 'zip', keys_directory)
-    return send_file(f"{keys_directory}.zip", as_attachment=True)
 
 @app.route('/update_device', methods=['POST'])
 def update_device():
@@ -189,15 +134,55 @@ def permanent_delete_device():
     except Exception as e:
         print('Error permanently deleting device:', str(e))
         return jsonify({'error': 'Failed to permanently delete device'}), 500
-	    
+
 #Endpoints for receiving data from Devices (Protocols)
 #HTTP (RESTful API)
+@app.route('/receive_data', methods=['POST'])
+def receive_data():
+    try:
+        data = request.json
+
+        # Device authentication
+        if 'name' not in data or 'key' not in data:
+            return jsonify({'error': 'Name or key not found in the request'}), 400
+
+        device_name = data.get('name')
+        received_key = data.get('key')
+
+        # Check if the key is valid
+        if not is_valid_key(device_name, received_key):
+            return jsonify({'error': 'Invalid key or device not found'}), 401
+
+        # Process the accepted data
+        timestamp, field_name, field_value = extract_data_fields(data)
+        save_data_to_database(device_name, timestamp, field_name, field_value)
+
+        return jsonify({'message': 'Data received successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400  # Return an error response if something goes wrong
+
+def is_valid_key(device_name, received_key):
+    device = Device.query.filter_by(name=device_name).first()
+    return device and device.key == received_key
+
+def extract_data_fields(data):
+    timestamp = data.get('timestamp', None)  # If not provided, it will use the default
+    field_name = data.get('field_name')
+    field_value = data.get('field_value')
+    return timestamp, field_name, field_value
+
+# Function to save data to the database
+def save_data_to_database(device_name, timestamp, field_name, field_value):
+    device_data = DeviceData(device_name=device_name, timestamp=timestamp, field_name=field_name, field_value=field_value)
+    db.session.add(device_data)
+    db.session.commit()
 
 #MQTT
 
 #CoAP
 
 #WebSocket
+
 
 if __name__ == '__main__':
     app.run(debug=True)
