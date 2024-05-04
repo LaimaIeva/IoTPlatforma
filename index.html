@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IoT Platform</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='styles.css') }}">
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-
     <style>
         #container {
             margin: 100px auto;
@@ -36,21 +34,64 @@
         <div id="menu-content">
             <p><a href="{{ url_for('index') }}">Home</a></p>
             <p><a href="{{ url_for('devices') }}">Devices</a></p>
-	    <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
-        </div>    
+            <p><a href="{{ url_for('deprecated_devices') }}">Deprecated Devices</a></p>
+        </div>
         <!-- Mode Slider -->
         <input type="range" min="0" max="1" step="1" value="0" id="mode-slider" onchange="toggleMode()">
     </div>
-	
+
     <div id="page-title">Dashboard</div>
-    
-    <!-- Main Content Containers -->
-    <div id="container">
-        <div id="home-container" class="container">
-            <!-- Home Content Goes Here -->
-        </div>
+
+    <div id="chart-container">
+        <canvas id="realTimeChart" width="800" height="400"></canvas>
     </div>
-    <script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js" integrity="sha512-dUlSLLkxslGILhPdCkALwk4szPhp3xmZIKFtlUD+O9Lslq41Aksmdt5OGqpomDoT4FsCUH70jQU8ezZHI3v1RQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js" integrity="sha512-11t8Q+vY9JlCrr+PveZKTYJq8n7O09Y5X/pk/aMd3vJugSvu4xOunGEUzaADqL3I8cZKE/pBwwCfXzDkRJh2sQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{{ url_for('static', filename='scripts.js') }}"></script>
+    <script type="text/javascript">
+        var DateTime = luxon.DateTime;
+        console.log(DateTime.local().toISO());
+        var ctx = document.getElementById('realTimeChart').getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Field Value',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'second'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        // WebSocket connection
+        var socket = io();
+        socket.on('connect', function() {
+            console.log('Connected to WebSocket');
+        });
+
+        // Handle incoming data_update events from WebSocket
+        socket.on('data_update', function(data) {
+            console.log('Received real-time data:', data);
+            // Update chart data
+            myChart.data.labels.push(data.timestamp);  // Assuming data.timestamp is a valid timestamp
+            myChart.data.datasets[0].data.push(data.value);
+            myChart.update();  // Update the chart
+        });
     </script>
 </body>
 </html>
