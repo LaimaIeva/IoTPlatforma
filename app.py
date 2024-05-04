@@ -1,22 +1,32 @@
+import requests
 from flask import Flask, render_template, jsonify, request, send_file, render_template_string
 import secrets
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import event
+from sqlalchemy import event, MetaData, Table
 import subprocess
 import os
 import shutil
 import logging
+import json
+import traceback
+from datetime import datetime
+from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 
 app = Flask(__name__, static_url_path='/static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://calaie:ubuntu@localhost/iot'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+app.config['SECRET_KEY'] = 'ubuntu'
+socketio = SocketIO(app)
+CORS(app)
 
 log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
 os.makedirs(log_dir, exist_ok=True)
 log_file = os.path.join(log_dir, 'app.log')
 logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG)
 
 class Device(db.Model):
     __tablename__ = 'devices'
@@ -33,7 +43,7 @@ class BaseDeviceData(db.Model):
     timestamp = db.Column(db.TIMESTAMP, nullable=False, default=db.func.current_timestamp())
     field_name = db.Column(db.String(255), nullable=False)
     field_value = db.Column(db.String(255), nullable=False)
-    device_name = db.Column(db.String(255), nullable=False)
+#    device_name = db.Column(db.String(255), nullable=False)
 
 def generate_key():
     return secrets.token_hex(16)
@@ -135,53 +145,75 @@ def permanent_delete_device():
         print('Error permanently deleting device:', str(e))
         return jsonify({'error': 'Failed to permanently delete device'}), 500
 
-#Endpoints for receiving data from Devices (Protocols)
-#HTTP (RESTful API)
+# Endpoints for receiving data from Devices (Protocols)
+
+# WebSocket
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+def emit_realtime_data(device_name, field_name, field_value):
+    socketio.emit('data_update', {'device': device_name, 'field': field_name, 'value': field_value}, namespace='/')
+
+# HTTP (RESTful API)
 @app.route('/receive_data', methods=['POST'])
 def receive_data():
     try:
-        data = request.json
+        logging.info(f"Received {request.method} request to {request.path}")
+        logging.debug("Raw Request Data:")
+        logging.debug(request.get_data(as_text=True))
+
+        data = json.loads(request.data)
+        logging.debug("Parsed JSON Data:")
+        logging.debug(json.dumps(data))
 
         # Device authentication
-        if 'name' not in data or 'key' not in data:
-            return jsonify({'error': 'Name or key not found in the request'}), 400
+        if not is_valid_key(data):
+            return jsonify({'error': 'Invalid device name or key'}), 401
 
-        device_name = data.get('name')
-        received_key = data.get('key')
+        device_name = data.get('device_name')
+        timestamp = data.get('timestamp', None)
+        field_name = data.get('field_name')
+        field_value = data.get('field_value')
 
-        # Check if the key is valid
-        if not is_valid_key(device_name, received_key):
-            return jsonify({'error': 'Invalid key or device not found'}), 401
-
-        # Process the accepted data
-        timestamp, field_name, field_value = extract_data_fields(data)
         save_data_to_database(device_name, timestamp, field_name, field_value)
 
         return jsonify({'message': 'Data received successfully'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 400  # Return an error response if something goes wrong
+        logging.error(f"Error receiving data: {str(e)}")
+        return jsonify({'error': str(e)}), 400
 
-def is_valid_key(device_name, received_key):
-    device = Device.query.filter_by(name=device_name).first()
-    return device and device.key == received_key
+def is_valid_key(data):
+    if 'device_name' not in data or 'device_key' not in data:
+        return False
+    device_name = data.get('device_name')
+    device_key = data.get('device_key')
+    device = Device.query.filter_by(name=device_name, key=device_key).first()
+    return device is not None
 
-def extract_data_fields(data):
-    timestamp = data.get('timestamp', None)  # If not provided, it will use the default
-    field_name = data.get('field_name')
-    field_value = data.get('field_value')
-    return timestamp, field_name, field_value
-
-# Function to save data to the database
 def save_data_to_database(device_name, timestamp, field_name, field_value):
-    device_data = DeviceData(device_name=device_name, timestamp=timestamp, field_name=field_name, field_value=field_value)
-    db.session.add(device_data)
-    db.session.commit()
+    try:
+        metadata = MetaData()
+        table = Table(device_name.lower(), metadata, autoload_with=db.engine, extend_existing=True)
+        if timestamp is None:
+            timestamp = datetime.utcnow()
+        ins = table.insert().values(timestamp=timestamp, field_name=field_name, field_value=field_value)
+        db.session.execute(ins)
+        db.session.commit()
+        emit_realtime_data(device_name, field_name, field_value)
+        logging.info(f"Data inserted successfully into table '{device_name}'.")
+    except Exception as e:
+        logging.error(f"Failed to insert data into table '{device_name}': {str(e)}")
+        db.session.rollback()
+        raise
 
-#MQTT
+# MQTT
 
-#CoAP
-
-#WebSocket
+# CoAP
 
 
 if __name__ == '__main__':
